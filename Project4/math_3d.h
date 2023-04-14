@@ -1,3 +1,21 @@
+/*
+
+    Copyright 2010 Etay Meiri
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef MATH_3D_H
 #define	MATH_3D_H
 
@@ -114,6 +132,14 @@ inline Vector3f operator*(const Vector3f& l, float f)
     return Ret;
 }
 
+struct PersProjInfo
+{
+    float FOV;
+    float Width;
+    float Height;
+    float zNear;
+    float zFar;
+};
 
 class Matrix4f
 {
@@ -149,11 +175,18 @@ public:
         return Ret;
     }
 
+    void Print()
+    {
+        for (int i = 0; i < 4; i++) {
+            printf("%f %f %f %f\n", m[i][0], m[i][1], m[i][2], m[i][3]);
+        }
+    }
+
     void InitScaleTransform(float ScaleX, float ScaleY, float ScaleZ);
     void InitRotateTransform(float RotateX, float RotateY, float RotateZ);
     void InitTranslationTransform(float x, float y, float z);
     void InitCameraTransform(const Vector3f& Target, const Vector3f& Up);
-    void InitPersProjTransform(float FOV, float Width, float Height, float zNear, float zFar);
+    void InitPersProjTransform(const PersProjInfo& p);
 };
 
 
