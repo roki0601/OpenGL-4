@@ -15,13 +15,14 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-    Tutorial 25 - SkyBox
+    Tutorial 26 - Bump Mapping
 */
 
 #include <math.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
+#include "engine_common.h"
 #include "util.h"
 #include "pipeline.h"
 #include "camera.h"
@@ -29,50 +30,55 @@
 #include "lighting_technique.h"
 #include "glut_backend.h"
 #include "mesh.h"
-#include "skybox.h"
 
 #define WINDOW_WIDTH  1920
 #define WINDOW_HEIGHT 1200
 
 
-class Main : public ICallbacks
+class Tutorial26 : public ICallbacks
 {
 public:
 
-    Main()
+    Tutorial26()
     {
         m_pLightingTechnique = NULL;
         m_pGameCamera = NULL;
-        m_pTankMesh = NULL;
+        m_pSphereMesh = NULL;
         m_scale = 0.0f;
-        m_pSkyBox = NULL;
+        m_pTexture = NULL;
+        m_pNormalMap = NULL;
+        m_pTrivialNormalMap = NULL;
 
         m_dirLight.AmbientIntensity = 0.2f;
         m_dirLight.DiffuseIntensity = 0.8f;
         m_dirLight.Color = Vector3f(1.0f, 1.0f, 1.0f);
-        m_dirLight.Direction = Vector3f(1.0f, -1.0f, 0.0f);
+        m_dirLight.Direction = Vector3f(1.0f, 0.0f, 0.0f);
 
         m_persProjInfo.FOV = 60.0f;
         m_persProjInfo.Height = WINDOW_HEIGHT;
         m_persProjInfo.Width = WINDOW_WIDTH;
         m_persProjInfo.zNear = 1.0f;
         m_persProjInfo.zFar = 100.0f;
+
+        m_bumpMapEnabled = true;
     }
 
 
-    virtual ~Main()
+    ~Tutorial26()
     {
         SAFE_DELETE(m_pLightingTechnique);
         SAFE_DELETE(m_pGameCamera);
-        SAFE_DELETE(m_pTankMesh);
-        SAFE_DELETE(m_pSkyBox);
+        SAFE_DELETE(m_pSphereMesh);
+        SAFE_DELETE(m_pTexture);
+        SAFE_DELETE(m_pNormalMap);
+        SAFE_DELETE(m_pTrivialNormalMap);
     }
 
 
     bool Init()
     {
-        Vector3f Pos(0.0f, 1.0f, -20.0f);
-        Vector3f Target(0.0f, 0.0f, 1.0f);
+        Vector3f Pos(0.5f, 1.025f, 0.25f);
+        Vector3f Target(0.0f, -0.5f, 1.0f);
         Vector3f Up(0.0, 1.0f, 0.0f);
 
         m_pGameCamera = new Camera(WINDOW_WIDTH, WINDOW_HEIGHT, Pos, Target, Up);
@@ -86,23 +92,32 @@ public:
 
         m_pLightingTechnique->Enable();
         m_pLightingTechnique->SetDirectionalLight(m_dirLight);
-        m_pLightingTechnique->SetTextureUnit(0);
+        m_pLightingTechnique->SetColorTextureUnit(0);
+        m_pLightingTechnique->SetNormalMapTextureUnit(2);
 
-        m_pTankMesh = new Mesh();
+        m_pSphereMesh = new Mesh();
 
-        if (!m_pTankMesh->LoadMesh("C:\\inj\\content\\Content\\phoenix_ugv.md2")) {
+        if (!m_pSphereMesh->LoadMesh("C:\\inj\\content\\Content\\box.obj")) {
             return false;
         }
 
-        m_pSkyBox = new SkyBox(m_pGameCamera, m_persProjInfo);
+        m_pTexture = new Texture(GL_TEXTURE_2D, "C:\\inj\\content\\Content\\bricks.jpg");
 
-        if (!m_pSkyBox->Init("C:\\inj\\content\\Content",
-            "sp3right.jpg",
-            "sp3left.jpg",
-            "sp3top.jpg",
-            "sp3bot.jpg",
-            "sp3front.jpg",
-            "sp3back.jpg")) {
+        if (!m_pTexture->Load()) {
+            return false;
+        }
+
+        m_pTexture->Bind(COLOR_TEXTURE_UNIT);
+
+        m_pNormalMap = new Texture(GL_TEXTURE_2D, "C:\\inj\\content\\Content\\normal_map.jpg");
+
+        if (!m_pNormalMap->Load()) {
+            return false;
+        }
+
+        m_pTrivialNormalMap = new Texture(GL_TEXTURE_2D, "C:\\inj\\content\\Content\\normal_up.jpg");
+
+        if (!m_pTrivialNormalMap->Load()) {
             return false;
         }
 
@@ -119,24 +134,32 @@ public:
     virtual void RenderSceneCB()
     {
         m_pGameCamera->OnRender();
-        m_scale += 0.05f;
+        m_scale += 0.01f;
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         m_pLightingTechnique->Enable();
 
         Pipeline p;
-        p.Scale(0.1f, 0.1f, 0.1f);
         p.Rotate(0.0f, m_scale, 0.0f);
-        p.WorldPos(0.0f, -5.0f, 3.0f);
+        p.WorldPos(0.0f, 0.0f, 3.0f);
         p.SetCamera(m_pGameCamera->GetPos(), m_pGameCamera->GetTarget(), m_pGameCamera->GetUp());
         p.SetPerspectiveProj(m_persProjInfo);
 
+        m_pTexture->Bind(COLOR_TEXTURE_UNIT);
+
+        if (m_bumpMapEnabled)
+        {
+            m_pNormalMap->Bind(NORMAL_TEXTURE_UNIT);
+        }
+        else
+        {
+            m_pTrivialNormalMap->Bind(NORMAL_TEXTURE_UNIT);
+        }
+
         m_pLightingTechnique->SetWVP(p.GetWVPTrans());
         m_pLightingTechnique->SetWorldMatrix(p.GetWorldTrans());
-        m_pTankMesh->Render();
-
-        m_pSkyBox->Render();
+        m_pSphereMesh->Render();
 
         glutSwapBuffers();
     }
@@ -160,6 +183,10 @@ public:
         case 'q':
             glutLeaveMainLoop();
             break;
+
+        case 'b':
+            m_bumpMapEnabled = !m_bumpMapEnabled;
+            break;
         }
     }
 
@@ -175,9 +202,12 @@ private:
     Camera* m_pGameCamera;
     float m_scale;
     DirectionalLight m_dirLight;
-    Mesh* m_pTankMesh;
-    SkyBox* m_pSkyBox;
+    Mesh* m_pSphereMesh;
+    Texture* m_pTexture;
+    Texture* m_pNormalMap;
+    Texture* m_pTrivialNormalMap;
     PersProjInfo m_persProjInfo;
+    bool m_bumpMapEnabled;
 };
 
 
@@ -186,11 +216,11 @@ int main(int argc, char** argv)
     GLUTBackendInit(argc, argv);
     Magick::InitializeMagick(nullptr); // <--- added this line
 
-    if (!GLUTBackendCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, 32, false, "Tutorial 25")) {
+    if (!GLUTBackendCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, 32, false, "Tutorial 26")) {
         return 1;
     }
 
-    Main* pApp = new Main();
+    Tutorial26* pApp = new Tutorial26();
 
     if (!pApp->Init()) {
         return 1;
